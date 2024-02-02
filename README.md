@@ -1,5 +1,6 @@
 # DSen2
 Deep Sentinel-2
+A copy repo of original https://github.com/up42/DSen2 and archived https://github.com/up42/DSen2 with running improvements.
 
 [Super-Resolution of Sentinel-2 Images: Learning a Globally Applicable Deep Neural Network](https://arxiv.org/abs/1803.04271)
 
