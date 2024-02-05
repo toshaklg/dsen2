@@ -1,7 +1,6 @@
 from __future__ import division
 import os
 import sys
-sys.path.append("..")
 import gc
 from typing import Tuple
 import argparse
@@ -12,7 +11,7 @@ from rasterio import Affine as A
 import numpy as np
 
 from utils.data_utils import DATA_UTILS, get_logger
-from supres import dsen2_20, dsen2_60
+from testing.supres import dsen2_20, dsen2_60
 
 LOGGER = get_logger(__name__)
 
@@ -81,7 +80,7 @@ class Superresolution(DATA_UTILS):
                 else:
                     # Get the pixel bounds of the full scene
                     xmin, ymin, xmax, ymax, interest_area = self.get_max_min(
-                        6500, 1500, 7000, 2000, dsdesc
+                        0, 0, 10980, 10980, dsdesc
                     )
                 LOGGER.info("Selected pixel region:")
                 LOGGER.info("xmin = %s", xmin)
@@ -194,8 +193,8 @@ if __name__ == "__main__":
         "--clip_to_aoi",
         default="",
         help=(
-            "Sets the region of interest to extract as pixels locations on the 10m"
-            'bands. Use this syntax: x_1,y_1,x_2,y_2. E.g. --roi_x_y "2000,2000,3200,3200"'
+            "Sets the region on interest to extract as coordinates in WGS84."
+            "Use this syntax: x_1,y_1,x_2,y_2. E.g. --clip_to_aoi 26.0,58.0,26.5,58.5"
         ),
     )
     parser.add_argument(
