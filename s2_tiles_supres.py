@@ -17,7 +17,7 @@ LOGGER = get_logger(__name__)
 
 # pylint: disable-msg=too-many-arguments
 def save_result(
-    model_output, output_bands, valid_desc, output_profile, image_name,
+    model_output, output_bands, valid_desc, output_profile, image_name_template,
 ):
     """
     This method saves the feature collection meta data and the
@@ -27,14 +27,15 @@ def save_result(
     :param valid_desc: The valid description of the existing bands.
     :param output_profile: The georeferencing for the output image.
     :param output_features: The meta data for the output image.
-    :param image_name: The name of the output image.
+    :param image_name_template: Templated name of the output image.
 
     """
 
-    with rasterio.open(image_name, "w", **output_profile) as d_s:
-        for b_i, b_n in enumerate(output_bands):
-            d_s.write(model_output[:, :, b_i], indexes=b_i + 1)
-            d_s.set_band_description(b_i + 1, "SR " + valid_desc[b_n])
+    for b_i, b_n in enumerate(output_bands):
+        image_name = image_name_template.format(band=b_n)
+        with rasterio.open(image_name, "w", **output_profile) as d_s:
+            d_s.write(model_output[:, :, b_i], indexes=1)
+            d_s.set_band_description(1, valid_desc[b_n])
 
 
 # pylint: disable-msg=too-many-arguments
@@ -45,14 +46,14 @@ def update(pr_10m, size_10m: Tuple, model_output: np.ndarray, xmi: int, ymi: int
 
     """
     # Here based on the params.json file, the output image dimension will be calculated.
-    out_dims = model_output.shape[2]
+    # out_dims = model_output.shape[2]
 
     new_transform = pr_10m["transform"] * A.translation(xmi, ymi)
     pr_10m.update(dtype=rasterio.float32)
     pr_10m.update(driver="GTiff")
     pr_10m.update(width=size_10m[1])
     pr_10m.update(height=size_10m[0])
-    pr_10m.update(count=out_dims)
+    pr_10m.update(count=1)
     pr_10m.update(transform=new_transform)
     return pr_10m
 
@@ -159,8 +160,8 @@ class Superresolution(DATA_UTILS):
 
         pr_10m_updated = update(pr_10m, data10.shape, sr_final, coord[0], coord[1])
 
-        path_to_output_img = self.data_name.split(".")[0] + "_superresolution.tif"
-        filename = os.path.join(self.output_dir, path_to_output_img)
+        path_to_output_img = self.data_name.split(".")[0] + "_{band}.tif"
+        filename_template = os.path.join(self.output_dir, path_to_output_img)
 
         LOGGER.info("Now writing the super-resolved bands")
         save_result(
@@ -168,7 +169,7 @@ class Superresolution(DATA_UTILS):
             validated_sr_final_bands,
             self.validated_descriptions_all,
             pr_10m_updated,
-            filename,
+            filename_template,
         )
         del sr_final
         LOGGER.info("This is for releasing memory: %s", gc.collect())
