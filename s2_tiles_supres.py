@@ -58,9 +58,10 @@ def update(pr_10m, size_10m: Tuple, model_output: np.ndarray, xmi: int, ymi: int
 
 
 class Superresolution(DATA_UTILS):
-    def __init__(self, data_file_path, clip_to_aoi, copy_original_bands, output_dir):
+    def __init__(self, data_file_path, clip_to_aoi, aoi_epsg, copy_original_bands, output_dir):
         self.data_file_path = data_file_path
         self.clip_to_aoi = clip_to_aoi
+        self.aoi_epsg = aoi_epsg
         self.copy_original_bands = copy_original_bands
         self.output_dir = output_dir
         self.data_name = os.path.basename(data_file_path)
@@ -75,7 +76,7 @@ class Superresolution(DATA_UTILS):
             if "10m" in dsdesc:
                 if self.clip_to_aoi:
                     xmin, ymin, xmax, ymax, interest_area = self.area_of_interest(
-                        dsdesc, self.clip_to_aoi
+                        dsdesc, self.clip_to_aoi, self.aoi_epsg
                     )
                 else:
                     # Get the pixel bounds of the full scene
@@ -196,7 +197,14 @@ if __name__ == "__main__":
             "Sets the region on interest to extract as coordinates in WGS84."
             "Use this syntax: x_1,y_1,x_2,y_2. E.g. --clip_to_aoi 26.0,58.0,26.5,58.5"
         ),
-    )
+    ),
+    parser.add_argument(
+        "--aoi_epsg",
+        default="",
+        help=(
+            "EPSG of clip_to_aoi coordinates."
+        ),
+    ),
     parser.add_argument(
         "--copy_original_bands",
         action="store_true",
@@ -209,5 +217,5 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     Superresolution(
-        args.data_file_path, args.clip_to_aoi, args.copy_original_bands, args.output_dir
+        args.data_file_path, args.clip_to_aoi, args.aoi_epsg, args.copy_original_bands, args.output_dir
     ).process()
