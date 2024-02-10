@@ -99,7 +99,7 @@ class DATA_UTILS:
         return tmxmin, tmymin, tmxmax, tmymax, area
 
     # pylint: disable-msg=too-many-locals
-    def to_xy(self, lon: float, lat: float, data) -> Tuple:
+    def to_xy(self, lon: float, lat: float, aoi_epsg, data) -> Tuple:
         """
         This method gets the longitude and the latitude of a given point and projects it
         into pixel location in the new coordinate system.
@@ -115,7 +115,7 @@ class DATA_UTILS:
         # transform the lat and lon into x and y position which are defined in
         # the world's coordinate system.
         local_crs = self.get_utm(data)
-        crs_wgs = proj.Proj(init="epsg:4326")  # WGS 84 geographic coordinate system
+        crs_wgs = proj.Proj(init=f"epsg:{aoi_epsg}")  # fetch epsg from arguments
         crs_bng = proj.Proj(init=local_crs)  # use a locally appropriate projected CRS
         x_p, y_p = proj.transform(crs_wgs, crs_bng, lon, lat)
         x_p -= xoff
@@ -141,7 +141,7 @@ class DATA_UTILS:
         return utm
 
     # pylint: disable-msg=too-many-locals
-    def area_of_interest(self, data, clip_to_aoi) -> Tuple:
+    def area_of_interest(self, data, clip_to_aoi, aoi_epsg) -> Tuple:
         """
         This method returns the coordinates that define the desired area of interest.
         """
@@ -149,8 +149,8 @@ class DATA_UTILS:
             roi_lon1, roi_lat1, roi_lon2, roi_lat2 = [
                 float(x) for x in re.split(",", clip_to_aoi)
             ]
-            x_1, y_1 = self.to_xy(roi_lon1, roi_lat1, data)
-            x_2, y_2 = self.to_xy(roi_lon2, roi_lat2, data)
+            x_1, y_1 = self.to_xy(roi_lon1, roi_lat1, aoi_epsg, data)
+            x_2, y_2 = self.to_xy(roi_lon2, roi_lat2, aoi_epsg, data)
         else:
             x_1, y_1, x_2, y_2 = 0, 0, 500, 500
 

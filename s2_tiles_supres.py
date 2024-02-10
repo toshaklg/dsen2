@@ -1,7 +1,6 @@
 from __future__ import division
 import os
 import sys
-sys.path.append("..")
 import gc
 from typing import Tuple
 import argparse
@@ -12,13 +11,13 @@ from rasterio import Affine as A
 import numpy as np
 
 from utils.data_utils import DATA_UTILS, get_logger
-from supres import dsen2_20, dsen2_60
+from testing.supres import dsen2_20, dsen2_60
 
 LOGGER = get_logger(__name__)
 
 # pylint: disable-msg=too-many-arguments
 def save_result(
-    model_output, output_bands, valid_desc, output_profile, image_name,
+    model_output, output_bands, valid_desc, output_profile, image_name_template,
 ):
     """
     This method saves the feature collection meta data and the
@@ -28,14 +27,15 @@ def save_result(
     :param valid_desc: The valid description of the existing bands.
     :param output_profile: The georeferencing for the output image.
     :param output_features: The meta data for the output image.
-    :param image_name: The name of the output image.
+    :param image_name_template: Templated name of the output image.
 
     """
 
-    with rasterio.open(image_name, "w", **output_profile) as d_s:
-        for b_i, b_n in enumerate(output_bands):
-            d_s.write(model_output[:, :, b_i], indexes=b_i + 1)
-            d_s.set_band_description(b_i + 1, "SR " + valid_desc[b_n])
+    for b_i, b_n in enumerate(output_bands):
+        image_name = image_name_template.format(band=b_n)
+        with rasterio.open(image_name, "w", **output_profile) as d_s:
+            d_s.write(model_output[:, :, b_i], indexes=1)
+            d_s.set_band_description(1, valid_desc[b_n])
 
 
 # pylint: disable-msg=too-many-arguments
@@ -46,22 +46,23 @@ def update(pr_10m, size_10m: Tuple, model_output: np.ndarray, xmi: int, ymi: int
 
     """
     # Here based on the params.json file, the output image dimension will be calculated.
-    out_dims = model_output.shape[2]
+    # out_dims = model_output.shape[2]
 
     new_transform = pr_10m["transform"] * A.translation(xmi, ymi)
     pr_10m.update(dtype=rasterio.float32)
     pr_10m.update(driver="GTiff")
     pr_10m.update(width=size_10m[1])
     pr_10m.update(height=size_10m[0])
-    pr_10m.update(count=out_dims)
+    pr_10m.update(count=1)
     pr_10m.update(transform=new_transform)
     return pr_10m
 
 
 class Superresolution(DATA_UTILS):
-    def __init__(self, data_file_path, clip_to_aoi, copy_original_bands, output_dir):
+    def __init__(self, data_file_path, clip_to_aoi, aoi_epsg, copy_original_bands, output_dir):
         self.data_file_path = data_file_path
         self.clip_to_aoi = clip_to_aoi
+        self.aoi_epsg = aoi_epsg
         self.copy_original_bands = copy_original_bands
         self.output_dir = output_dir
         self.data_name = os.path.basename(data_file_path)
@@ -76,12 +77,12 @@ class Superresolution(DATA_UTILS):
             if "10m" in dsdesc:
                 if self.clip_to_aoi:
                     xmin, ymin, xmax, ymax, interest_area = self.area_of_interest(
-                        dsdesc, self.clip_to_aoi
+                        dsdesc, self.clip_to_aoi, self.aoi_epsg
                     )
                 else:
                     # Get the pixel bounds of the full scene
                     xmin, ymin, xmax, ymax, interest_area = self.get_max_min(
-                        6500, 1500, 7000, 2000, dsdesc
+                        0, 0, 10980, 10980, dsdesc
                     )
                 LOGGER.info("Selected pixel region:")
                 LOGGER.info("xmin = %s", xmin)
@@ -159,8 +160,8 @@ class Superresolution(DATA_UTILS):
 
         pr_10m_updated = update(pr_10m, data10.shape, sr_final, coord[0], coord[1])
 
-        path_to_output_img = self.data_name.split(".")[0] + "_superresolution.tif"
-        filename = os.path.join(self.output_dir, path_to_output_img)
+        path_to_output_img = self.data_name.split(".")[0] + "_{band}.tif"
+        filename_template = os.path.join(self.output_dir, path_to_output_img)
 
         LOGGER.info("Now writing the super-resolved bands")
         save_result(
@@ -168,7 +169,7 @@ class Superresolution(DATA_UTILS):
             validated_sr_final_bands,
             self.validated_descriptions_all,
             pr_10m_updated,
-            filename,
+            filename_template,
         )
         del sr_final
         LOGGER.info("This is for releasing memory: %s", gc.collect())
@@ -194,10 +195,17 @@ if __name__ == "__main__":
         "--clip_to_aoi",
         default="",
         help=(
-            "Sets the region of interest to extract as pixels locations on the 10m"
-            'bands. Use this syntax: x_1,y_1,x_2,y_2. E.g. --roi_x_y "2000,2000,3200,3200"'
+            "Sets the region on interest to extract as coordinates in WGS84."
+            "Use this syntax: x_1,y_1,x_2,y_2. E.g. --clip_to_aoi 26.0,58.0,26.5,58.5"
         ),
-    )
+    ),
+    parser.add_argument(
+        "--aoi_epsg",
+        default="",
+        help=(
+            "EPSG of clip_to_aoi coordinates."
+        ),
+    ),
     parser.add_argument(
         "--copy_original_bands",
         action="store_true",
@@ -210,5 +218,5 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     Superresolution(
-        args.data_file_path, args.clip_to_aoi, args.copy_original_bands, args.output_dir
+        args.data_file_path, args.clip_to_aoi, args.aoi_epsg, args.copy_original_bands, args.output_dir
     ).process()
